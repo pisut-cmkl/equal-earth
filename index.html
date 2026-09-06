@@ -19,6 +19,9 @@
     --btn-fg: #2b2f33;
     --btn-border: #c9c4b8;
     --btn-hover: #f0ece2;
+    --btn-active-bg: #2b2f33;
+    --btn-active-fg: #ffffff;
+    --focus: #5b8def;
     color-scheme: light dark;
   }
   @media (prefers-color-scheme: dark) {
@@ -36,6 +39,8 @@
       --btn-fg: #e6e9ec;
       --btn-border: #34404b;
       --btn-hover: #263039;
+      --btn-active-bg: #e6e9ec;
+      --btn-active-fg: #0f1318;
     }
   }
   * { box-sizing: border-box; }
@@ -52,8 +57,9 @@
   }
   header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 8px 12px;
     padding: 10px clamp(12px, 3vw, 24px);
     padding-top: calc(10px + env(safe-area-inset-top));
     flex: 0 0 auto;
@@ -63,12 +69,18 @@
     font-weight: 600;
     margin: 0;
     letter-spacing: 0.01em;
+    white-space: nowrap;
   }
   #readout {
     color: var(--muted);
     font-variant-numeric: tabular-nums;
-    margin-left: auto;
     white-space: nowrap;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
   }
   button {
     font: inherit;
@@ -78,11 +90,37 @@
     background: var(--btn-bg);
     color: var(--btn-fg);
     cursor: pointer;
-    transition: opacity .15s, background .15s;
+    transition: opacity .15s, background .15s, color .15s;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.2;
   }
   button:hover { background: var(--btn-hover); }
   button:disabled { opacity: 0.4; cursor: default; }
-  button:focus-visible { outline: 2px solid #5b8def; outline-offset: 2px; }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .seg {
+    display: inline-flex;
+    border: 1px solid var(--btn-border);
+    border-radius: 999px;
+    background: var(--btn-bg);
+    overflow: hidden;
+  }
+  .seg button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 6px 12px;
+  }
+  .seg button + button { border-left: 1px solid var(--btn-border); }
+  .seg button[aria-pressed="true"] {
+    background: var(--btn-active-bg);
+    color: var(--btn-active-fg);
+  }
+  .seg button:focus-visible { outline-offset: -2px; }
+  button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #snap { padding: 6px 10px; }
   main {
     flex: 1 1 auto;
     min-height: 0;
@@ -101,7 +139,7 @@
     outline: none;
   }
   canvas.dragging { cursor: grabbing; }
-  canvas:focus-visible { box-shadow: inset 0 0 0 2px #5b8def; }
+  canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
   footer {
     flex: 0 0 auto;
     padding: 8px clamp(12px, 3vw, 24px);
@@ -112,24 +150,55 @@
     gap: 16px;
     flex-wrap: wrap;
   }
-  @media (max-width: 480px) {
+  #toast {
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+    background: var(--btn-active-bg);
+    color: var(--btn-active-fg);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity .2s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+  @media (max-width: 560px) {
     h1 { font-size: 15px; }
     .hint { display: none; }
+    #readout { margin-left: auto; }
+    .controls { width: 100%; margin-left: 0; justify-content: space-between; }
+    .seg button { padding: 6px 10px; }
+    button { padding: 6px 10px; }
   }
 </style>
 </head>
 <body>
 <header>
-  <h1>Equal Earth</h1>
+  <h1 id="title">Equal Earth</h1>
   <span id="readout" aria-live="polite"><span class="hint">Central meridian </span><span id="deg"></span></span>
-  <button id="reset" type="button" disabled>Reset</button>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Projection">
+      <button type="button" data-proj="0" aria-pressed="true">Equal Earth</button>
+      <button type="button" data-proj="1" aria-pressed="false">Mercator</button>
+    </div>
+    <button id="reset" type="button" disabled title="Return to the prime meridian">Reset</button>
+    <button id="snap" type="button" title="Save a PNG snapshot of the map" aria-label="Save a PNG snapshot of the map">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.4-2h5.2L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>
+      <span class="hint">Snapshot</span>
+    </button>
+  </div>
 </header>
 <main>
-  <canvas id="map" tabindex="0" aria-label="Equal Earth world map. Drag left or right, or use arrow keys, to rotate."></canvas>
+  <canvas id="map" tabindex="0" aria-label="World map. Drag left or right, or use arrow keys, to rotate."></canvas>
+  <div id="toast" role="status"></div>
 </main>
 <footer>
   <span class="hint">Drag left or right to rotate</span>
-  <span>Equal Earth projection, Šavrič, Patterson &amp; Jenny (2018)</span>
+  <span id="attrib">Equal Earth projection, Šavrič, Patterson &amp; Jenny (2018)</span>
   <span>Natural Earth 1:110m</span>
 </footer>
 
@@ -138,44 +207,77 @@
 (() => {
   'use strict';
 
-  // ---------- Equal Earth projection ----------
+  const RAD = Math.PI / 180;
+  const normalize = d => ((d + 180) % 360 + 360) % 360 - 180;
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  // ---------- Projections ----------
+  // Both are pseudocylindrical in the sense used here: x = lonRad * kx(lat), y = y(lat).
+  // factors(lat) returns [kx, y]; inverse(x, y) returns [lonDeg, latDeg].
+
   const A1 = 1.340264, A2 = -0.081106, A3 = 0.000893, A4 = 0.003796;
   const M = Math.sqrt(3) / 2;
-  const RAD = Math.PI / 180;
-  function normalize(d) { return ((d + 180) % 360 + 360) % 360 - 180; }
 
-  // For a latitude, return [kx, y] such that x = lonRad * kx.
-  function latFactors(latDeg) {
-    const th = Math.asin(M * Math.sin(latDeg * RAD));
-    const t2 = th * th, t6 = t2 * t2 * t2;
-    const kx = Math.cos(th) / (M * (A1 + 3 * A2 * t2 + t6 * (7 * A3 + 9 * A4 * t2)));
-    const y = th * (A1 + A2 * t2 + t6 * (A3 + A4 * t2));
-    return [kx, y];
-  }
-  // Latitude (degrees) for a projected y, by Newton iteration on the polynomial.
-  function latFromY(y) {
-    let th = y / A1;
-    for (let i = 0; i < 12; i++) {
+  const EqualEarth = {
+    name: 'Equal Earth',
+    attrib: 'Equal Earth projection, Šavrič, Patterson & Jenny (2018)',
+    factors(latDeg) {
+      const th = Math.asin(M * Math.sin(latDeg * RAD));
       const t2 = th * th, t6 = t2 * t2 * t2;
-      const f = th * (A1 + A2 * t2 + t6 * (A3 + A4 * t2)) - y;
-      const df = A1 + 3 * A2 * t2 + t6 * (7 * A3 + 9 * A4 * t2);
-      const d = f / df; th -= d;
-      if (Math.abs(d) < 1e-12) break;
+      const kx = Math.cos(th) / (M * (A1 + 3 * A2 * t2 + t6 * (7 * A3 + 9 * A4 * t2)));
+      const y = th * (A1 + A2 * t2 + t6 * (A3 + A4 * t2));
+      return [kx, y];
+    },
+    inverse(x, y) {
+      let th = y / A1;
+      for (let i = 0; i < 12; i++) {
+        const t2 = th * th, t6 = t2 * t2 * t2;
+        const f = th * (A1 + A2 * t2 + t6 * (A3 + A4 * t2)) - y;
+        const df = A1 + 3 * A2 * t2 + t6 * (7 * A3 + 9 * A4 * t2);
+        const d = f / df; th -= d;
+        if (Math.abs(d) < 1e-12) break;
+      }
+      const lat = Math.asin(Math.max(-1, Math.min(1, Math.sin(th) / M))) / RAD;
+      return [x / this.factors(lat)[0] / RAD, lat];
     }
-    return Math.asin(Math.max(-1, Math.min(1, Math.sin(th) / M))) / RAD;
+  };
+
+  const Mercator = {
+    name: 'Mercator',
+    attrib: 'Mercator projection (1569), truncated at 85°',
+    maxLat: 85.05112878,   // makes the world a square, as in web maps
+    factors(latDeg) {
+      const la = Math.max(-this.maxLat, Math.min(this.maxLat, latDeg)) * RAD;
+      return [1, Math.log(Math.tan(Math.PI / 4 + la / 2))];
+    },
+    inverse(x, y) {
+      return [x / RAD, (2 * Math.atan(Math.exp(y)) - Math.PI / 2) / RAD];
+    }
+  };
+
+  const PROJS = [EqualEarth, Mercator];
+  const EXT = PROJS.map(p => ({ kx0: p.factors(0)[0], xmax: Math.PI * p.factors(0)[0], ymax: p.factors(90)[1] }));
+
+  let mix = 0;         // 0 = Equal Earth, 1 = Mercator (fractional while morphing)
+  let projIdx = 0;     // the selected projection
+
+  function factors(lat) {
+    const a = EqualEarth.factors(lat), b = Mercator.factors(lat);
+    return [lerp(a[0], b[0], mix), lerp(a[1], b[1], mix)];
   }
-  const KX0 = latFactors(0)[0];              // x per radian of longitude at the equator
-  const XMAX = Math.PI * KX0;                // half width of the map (projection units)
-  const YMAX = latFactors(90)[1];            // half height
+  function extents() {
+    return { kx0: lerp(EXT[0].kx0, EXT[1].kx0, mix), xmax: lerp(EXT[0].xmax, EXT[1].xmax, mix), ymax: lerp(EXT[0].ymax, EXT[1].ymax, mix) };
+  }
 
   // ---------- Decode TopoJSON ----------
   const topo = JSON.parse(document.getElementById('topo').textContent);
   const [sx, sy] = topo.tr.scale, [tx, ty] = topo.tr.translate;
 
-  // Each arc -> { lon: Float64Array, kx: Float64Array, y: Float64Array }
+  // Each arc: lon, lat, and per-projection [kx, y] as kA/yA (Equal Earth) and kB/yB (Mercator).
   const arcs = topo.arcs.map(a => {
     const n = a.length;
-    const lon = new Float64Array(n), kx = new Float64Array(n), y = new Float64Array(n), lat = new Float64Array(n);
+    const lon = new Float64Array(n), lat = new Float64Array(n);
+    const kA = new Float64Array(n), yA = new Float64Array(n), kB = new Float64Array(n), yB = new Float64Array(n);
     let px = 0, py = 0;
     for (let i = 0; i < n; i++) {
       px += a[i][0]; py += a[i][1];
@@ -183,10 +285,10 @@
       let la = py * sy + ty;
       // Natural Earth cuts Antarctica at ~84.7°S along the antimeridian; extend that edge to the pole.
       if (Math.abs(lo) > 179.999 && la < -80) la = -90;
-      const f = latFactors(la);
-      lon[i] = lo; lat[i] = la; kx[i] = f[0]; y[i] = f[1];
+      const fa = EqualEarth.factors(la), fb = Mercator.factors(la);
+      lon[i] = lo; lat[i] = la; kA[i] = fa[0]; yA[i] = fa[1]; kB[i] = fb[0]; yB[i] = fb[1];
     }
-    return { lon, lat, kx, y, n };
+    return { lon, lat, kA, yA, kB, yB, n };
   });
 
   // Some rings (Fiji, Russia) jump across the antimeridian instead of being cut there.
@@ -200,25 +302,6 @@
     return u;
   }
 
-  // Build rings as flat arrays [lon, kx, y, lon, kx, y, ...] plus lon bounds.
-  function buildRing(arcIdx) {
-    const pts = [];
-    let prevLon, prevLat;
-    for (const ai of arcIdx) {
-      const rev = ai < 0, arc = arcs[rev ? ~ai : ai];
-      const n = arc.n;
-      for (let k = 0; k < n; k++) {
-        const i = rev ? n - 1 - k : k;
-        if (pts.length && k === 0) continue; // skip junction duplicate
-        const u = unwrap(arc.lon[i], prevLon, arc.lat[i], prevLat);
-        pts.push(u, arc.kx[i], arc.y[i]);
-        prevLon = u; prevLat = arc.lat[i];
-      }
-    }
-    let lo = Infinity, hi = -Infinity;
-    for (let i = 0; i < pts.length; i += 3) { if (pts[i] < lo) lo = pts[i]; if (pts[i] > hi) hi = pts[i]; }
-    return { p: new Float64Array(pts), lo, hi };
-  }
   for (const arc of arcs) {
     arc.ulon = new Float64Array(arc.n);
     let lo = Infinity, hi = -Infinity;
@@ -230,14 +313,34 @@
     arc.lo = lo; arc.hi = hi;
   }
 
-  // Signed area and centroid of a ring in projection units (Equal Earth is equal-area,
-  // so this area is proportional to the country's true area).
-  function ringMetrics(r) {
-    const p = r.p, n = p.length;
+  // Rings as flat arrays [lon, kA, yA, kB, yB, ...] plus lon bounds.
+  const STRIDE = 5;
+  function buildRing(arcIdx) {
+    const pts = [];
+    let prevLon, prevLat;
+    for (const ai of arcIdx) {
+      const rev = ai < 0, arc = arcs[rev ? ~ai : ai];
+      const n = arc.n;
+      for (let k = 0; k < n; k++) {
+        const i = rev ? n - 1 - k : k;
+        if (pts.length && k === 0) continue; // skip junction duplicate
+        const u = unwrap(arc.lon[i], prevLon, arc.lat[i], prevLat);
+        pts.push(u, arc.kA[i], arc.yA[i], arc.kB[i], arc.yB[i]);
+        prevLon = u; prevLat = arc.lat[i];
+      }
+    }
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < pts.length; i += STRIDE) { if (pts[i] < lo) lo = pts[i]; if (pts[i] > hi) hi = pts[i]; }
+    return { p: new Float64Array(pts), lo, hi };
+  }
+
+  // Signed area and centroid of a ring in projection units for projection `w` (0 or 1).
+  function ringMetrics(r, w) {
+    const p = r.p, n = p.length, ko = 1 + 2 * w, yo = 2 + 2 * w;
     let a = 0, cxs = 0, cys = 0;
-    for (let i = 0, j = n - 3; i < n; j = i, i += 3) {
-      const x0 = p[j] * RAD * p[j + 1], y0 = p[j + 2];
-      const x1 = p[i] * RAD * p[i + 1], y1 = p[i + 2];
+    for (let i = 0, j = n - STRIDE; i < n; j = i, i += STRIDE) {
+      const x0 = p[j] * RAD * p[j + ko], y0 = p[j + yo];
+      const x1 = p[i] * RAD * p[i + ko], y1 = p[i + yo];
       const c = x0 * y1 - x1 * y0;
       a += c; cxs += (x0 + x1) * c; cys += (y0 + y1) * c;
     }
@@ -248,43 +351,47 @@
   const rings = [], labels = [];
   for (const g of topo.geo) {
     const polys = g.t === 1 ? [g.a] : g.a;
-    let total = 0, best = null;
+    const areas = [0, 0];
+    let best = null, bestArea = -1;
     for (const poly of polys) {
       poly.forEach((ring, k) => {
         const r = buildRing(ring);
         rings.push(r);
         if (k === 0) {                       // exterior ring
-          const m = ringMetrics(r);
-          total += m.area;
-          if (!best || m.area > best.area) best = m;
+          const mA = ringMetrics(r, 0), mB = ringMetrics(r, 1);
+          areas[0] += mA.area; areas[1] += mB.area;
+          if (mA.area > bestArea) { bestArea = mA.area; best = [mA, mB]; }
         }
       });
     }
     if (!g.n || !best) continue;
-    const lat = latFromY(best.y);
-    const [kx, y] = latFactors(lat);
-    labels.push({ name: g.n, lon: normalize(best.x / kx / RAD), kx, y, area: total });
+    const cA = EqualEarth.inverse(best[0].x, best[0].y), cB = Mercator.inverse(best[1].x, best[1].y);
+    labels.push({ name: g.n, lonA: normalize(cA[0]), latA: cA[1], lonB: normalize(cB[0]), latB: cB[1], areaA: areas[0], areaB: areas[1] });
   }
-  labels.sort((a, b) => b.area - a.area);
+  labels.sort((a, b) => b.areaA - a.areaA);
 
   // ---------- Canvas / layout ----------
   const canvas = document.getElementById('map');
   const ctx = canvas.getContext('2d');
   const degEl = document.getElementById('deg');
+  const titleEl = document.getElementById('title');
+  const attribEl = document.getElementById('attrib');
   const resetBtn = document.getElementById('reset');
+  const snapBtn = document.getElementById('snap');
+  const toast = document.getElementById('toast');
+  const projBtns = [...document.querySelectorAll('.seg button')];
 
-  let W = 0, H = 0, dpr = 1, scale = 1, cx = 0, cy = 0;
-  let outline = null;
+  let W = 0, H = 0, dpr = 1;
   let colors = {};
   let rot = 0;                // central meridian offset in degrees
-  let anim = null;
+  let rotAnim = null, projAnim = null;
 
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
     const v = n => cs.getPropertyValue(n).trim();
     colors = {
-      ocean: v('--ocean'), land: v('--land'), border: v('--border'),
-      graticule: v('--graticule'), outline: v('--outline'), bg: v('--bg'), label: v('--label')
+      ocean: v('--ocean'), land: v('--land'), border: v('--border'), graticule: v('--graticule'),
+      outline: v('--outline'), bg: v('--bg'), label: v('--label'), muted: v('--muted'), fg: v('--fg')
     };
   }
 
@@ -295,65 +402,70 @@
     dpr = Math.min(window.devicePixelRatio || 1, 3);
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
-    const pad = Math.min(W, H) < 500 ? 8 : 20;
-    scale = Math.min((W - 2 * pad) / (2 * XMAX), (H - 2 * pad) / (2 * YMAX));
-    cx = W / 2; cy = H / 2;
-
-    // Boundary of the projected sphere (lon = ±180).
-    outline = new Path2D();
-    const step = 1;
-    for (let la = -90; la <= 90; la += step) {
-      const [kx, y] = latFactors(la);
-      const X = cx + Math.PI * kx * scale, Y = cy - y * scale;
-      if (la === -90) outline.moveTo(X, Y); else outline.lineTo(X, Y);
-    }
-    for (let la = 90; la >= -90; la -= step) {
-      const [kx, y] = latFactors(la);
-      outline.lineTo(cx - Math.PI * kx * scale, cy - y * scale);
-    }
-    outline.closePath();
     render();
   }
 
-  // Trace a ring at a given longitude offset into the current path.
+  // Current drawing target; set by paint().
+  const g = { c: ctx, cx: 0, cy: 0, scale: 1, w: 0, h: 0 };
+
   function traceRing(r, off) {
-    const p = r.p, n = p.length;
-    const offRad = off * RAD;
-    for (let i = 0; i < n; i += 3) {
-      const X = cx + (p[i] * RAD + offRad) * p[i + 1] * scale;
-      const Y = cy - p[i + 2] * scale;
-      if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+    const c = g.c, p = r.p, n = p.length, offRad = off * RAD, s = g.scale, cx = g.cx, cy = g.cy;
+    for (let i = 0; i < n; i += STRIDE) {
+      const kx = lerp(p[i + 1], p[i + 3], mix), y = lerp(p[i + 2], p[i + 4], mix);
+      const X = cx + (p[i] * RAD + offRad) * kx * s, Y = cy - y * s;
+      if (i === 0) c.moveTo(X, Y); else c.lineTo(X, Y);
     }
-    ctx.closePath();
+    c.closePath();
   }
 
   // Trace an arc for border strokes, skipping segments that lie on the ±180 cut.
   function traceArc(arc, off) {
-    const offRad = off * RAD;
+    const c = g.c, offRad = off * RAD, s = g.scale, cx = g.cx, cy = g.cy;
     for (let i = 0; i < arc.n; i++) {
-      const X = cx + (arc.ulon[i] * RAD + offRad) * arc.kx[i] * scale;
-      const Y = cy - arc.y[i] * scale;
+      const kx = lerp(arc.kA[i], arc.kB[i], mix), y = lerp(arc.yA[i], arc.yB[i], mix);
+      const X = cx + (arc.ulon[i] * RAD + offRad) * kx * s, Y = cy - y * s;
       const onCut = Math.abs(arc.lon[i]) > 179.999;
       const prevCut = i > 0 && Math.abs(arc.lon[i - 1]) > 179.999;
-      if (i === 0 || (onCut && prevCut)) ctx.moveTo(X, Y);
-      else ctx.lineTo(X, Y);
+      if (i === 0 || (onCut && prevCut)) c.moveTo(X, Y);
+      else c.lineTo(X, Y);
     }
   }
 
-  function render() {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    const r = normalize(rot);
+  function buildOutline() {
+    const path = new Path2D(), s = g.scale, cx = g.cx, cy = g.cy;
+    for (let la = -90; la <= 90; la += 1) {
+      const [kx, y] = factors(la);
+      const X = cx + Math.PI * kx * s, Y = cy - y * s;
+      if (la === -90) path.moveTo(X, Y); else path.lineTo(X, Y);
+    }
+    for (let la = 90; la >= -90; la -= 1) {
+      const [kx, y] = factors(la);
+      path.lineTo(cx - Math.PI * kx * s, cy - y * s);
+    }
+    path.closePath();
+    return path;
+  }
 
-    ctx.save();
-    ctx.clip(outline);
+  // Draw the map into context c, in a w x h box (CSS px) starting at (x0, y0), at pixel ratio `ratio`.
+  function paint(c, x0, y0, w, h, ratio, r) {
+    const e = extents();
+    const pad = Math.min(w, h) < 500 ? 8 : 20;
+    g.c = c; g.w = w; g.h = h;
+    g.scale = Math.min((w - 2 * pad) / (2 * e.xmax), (h - 2 * pad) / (2 * e.ymax));
+    g.cx = x0 + w / 2; g.cy = y0 + h / 2;
+    const s = g.scale, cx = g.cx, cy = g.cy;
+    const outline = buildOutline();
+
+    c.setTransform(ratio, 0, 0, ratio, 0, 0);
+    c.save();
+    c.clip(outline);
 
     // Ocean
-    ctx.fillStyle = colors.ocean;
-    ctx.fillRect(0, 0, W, H);
+    c.fillStyle = colors.ocean;
+    c.fillRect(x0, y0, w, h);
 
     // Land fill: rotated copies at -360, 0, +360 so wrapped pieces are covered.
-    ctx.beginPath();
+    c.beginPath();
     for (const ring of rings) {
       for (const off of [-360, 0, 360]) {
         const o = r + off;
@@ -361,15 +473,15 @@
         traceRing(ring, o);
       }
     }
-    ctx.fillStyle = colors.land;
-    ctx.fill('nonzero');
-    ctx.strokeStyle = colors.land;   // hides hairline seams at the antimeridian cut
-    ctx.lineWidth = 0.6;
-    ctx.lineJoin = 'round';
-    ctx.stroke();
+    c.fillStyle = colors.land;
+    c.fill('nonzero');
+    c.strokeStyle = colors.land;   // hides hairline seams at the antimeridian cut
+    c.lineWidth = 0.6;
+    c.lineJoin = 'round';
+    c.stroke();
 
     // Borders and coastlines (each arc drawn once)
-    ctx.beginPath();
+    c.beginPath();
     for (const arc of arcs) {
       for (const off of [-360, 0, 360]) {
         const o = r + off;
@@ -377,70 +489,66 @@
         traceArc(arc, o);
       }
     }
-    ctx.strokeStyle = colors.border;
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
+    c.strokeStyle = colors.border;
+    c.lineWidth = 0.5;
+    c.stroke();
 
-    // Graticule: parallels every 30°
-    ctx.beginPath();
+    // Graticule: parallels and meridians every 30°
+    c.beginPath();
     for (let la = -60; la <= 60; la += 30) {
-      const [kx, y] = latFactors(la);
-      const Y = cy - y * scale;
-      ctx.moveTo(cx - Math.PI * kx * scale, Y);
-      ctx.lineTo(cx + Math.PI * kx * scale, Y);
+      const [kx, y] = factors(la);
+      const Y = cy - y * s;
+      c.moveTo(cx - Math.PI * kx * s, Y);
+      c.lineTo(cx + Math.PI * kx * s, Y);
     }
-    // Equator slightly stronger via double pass below; meridians every 30°
     for (let m = -180; m < 180; m += 30) {
       const lon = normalize(m + r);
       if (Math.abs(Math.abs(lon) - 180) < 1e-9) continue;
       for (let la = -90; la <= 90; la += 3) {
-        const [kx, y] = latFactors(la);
-        const X = cx + lon * RAD * kx * scale, Y = cy - y * scale;
-        if (la === -90) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+        const [kx, y] = factors(la);
+        const X = cx + lon * RAD * kx * s, Y = cy - y * s;
+        if (la === -90) c.moveTo(X, Y); else c.lineTo(X, Y);
       }
     }
-    ctx.strokeStyle = colors.graticule;
-    ctx.lineWidth = 0.75;
-    ctx.stroke();
+    c.strokeStyle = colors.graticule;
+    c.lineWidth = 0.75;
+    c.stroke();
 
-    ctx.restore();
+    c.restore();
 
     // Outline
-    ctx.strokeStyle = colors.outline;
-    ctx.lineWidth = 1;
-    ctx.stroke(outline);
+    c.strokeStyle = colors.outline;
+    c.lineWidth = 1;
+    c.stroke(outline);
 
     drawLabels(r);
-
-    // Readout
-    const a = Math.abs(r);
-    const label = a < 0.05 ? '0°' : a.toFixed(1) + '°' + (r > 0 ? 'W' : 'E');
-    degEl.textContent = label;
-    resetBtn.disabled = a < 0.05 && !anim;
   }
 
   // ---------- Country labels ----------
   const placed = [];
   function drawLabels(r) {
+    const c = g.c, s = g.scale, cx = g.cx, cy = g.cy;
     placed.length = 0;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = colors.land;
-    ctx.fillStyle = colors.label;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    c.strokeStyle = colors.land;
+    c.fillStyle = colors.label;
     for (const L of labels) {
-      const areaPx = L.area * scale * scale;
+      const areaPx = lerp(L.areaA, L.areaB, mix) * s * s;
       const side = Math.sqrt(areaPx);
       if (side < 14) continue;
       const size = Math.max(9, Math.min(14, Math.round(8 + side / 40)));
-      ctx.font = `500 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
-      const w = ctx.measureText(L.name).width;
+      c.font = `500 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+      const w = c.measureText(L.name).width;
       if (w > 2.4 * side) continue;                 // country too small for its name
 
-      // Pick the copy of this longitude that lands inside the map.
-      const lon = normalize(L.lon + r);
-      const X = cx + lon * RAD * L.kx * scale, Y = cy - L.y * scale;
-      const halfW = Math.PI * L.kx * scale;         // map half-width at this latitude
+      const lat = lerp(L.latA, L.latB, mix);
+      const lonRaw = L.lonA + normalize(L.lonB - L.lonA) * mix;
+      const [kx, y] = factors(lat);
+      const lon = normalize(lonRaw + r);
+      const X = cx + lon * RAD * kx * s, Y = cy - y * s;
+      const halfW = Math.PI * kx * s;               // map half-width at this latitude
       if (Math.abs(X - cx) + w / 2 + 3 > halfW) continue;   // would be cut at the edge
 
       const h = size, pad = 3;
@@ -450,16 +558,129 @@
       if (hit) continue;
       placed.push([x0, y0, x1, y1]);
 
-      ctx.lineWidth = Math.max(2, size / 4);
-      ctx.strokeText(L.name, X, Y);
-      ctx.fillText(L.name, X, Y);
+      c.lineWidth = Math.max(2, size / 4);
+      c.strokeText(L.name, X, Y);
+      c.fillText(L.name, X, Y);
     }
   }
+
+  // ---------- Screen render ----------
+  function meridianLabel(r) {
+    const a = Math.abs(r);
+    return a < 0.05 ? '0°' : a.toFixed(1) + '°' + (r > 0 ? 'W' : 'E');
+  }
+
+  function render() {
+    const r = normalize(rot);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    paint(ctx, 0, 0, W, H, dpr, r);
+    degEl.textContent = meridianLabel(r);
+    resetBtn.disabled = Math.abs(r) < 0.05 && !rotAnim;
+  }
+
+  // ---------- Snapshot ----------
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast.t);
+    showToast.t = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  function snapshot() {
+    const r = normalize(rot);
+    const e = extents();
+    const ratio = 2, w = 1400, pad = 40, cap = 44;
+    const mapH = Math.round((w - 2 * pad) * e.ymax / e.xmax);
+    const h = mapH + 2 * pad + cap;
+    const off = document.createElement('canvas');
+    off.width = w * ratio; off.height = h * ratio;
+    const c = off.getContext('2d');
+    c.setTransform(ratio, 0, 0, ratio, 0, 0);
+    c.fillStyle = colors.bg;
+    c.fillRect(0, 0, w, h);
+    paint(c, 0, 0, w, mapH + 2 * pad, ratio, r);
+
+    // Caption
+    const name = mix < 0.5 ? EqualEarth.name : Mercator.name;
+    c.setTransform(ratio, 0, 0, ratio, 0, 0);
+    c.font = '500 15px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    c.fillStyle = colors.fg;
+    c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.fillText(name + ' projection · Central meridian ' + meridianLabel(r), pad, h - cap / 2 - 4);
+    c.font = '13px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    c.fillStyle = colors.muted;
+    c.textAlign = 'right';
+    c.fillText('Natural Earth 1:110m', w - pad, h - cap / 2 - 4);
+
+    const file = name.toLowerCase().replace(/\s+/g, '-') + '-' + meridianLabel(r).replace('°', '').replace('.0', '') + '.png';
+    off.toBlob(async blob => {
+      if (!blob) { showToast('Could not create image'); return; }
+      const f = new File([blob], file, { type: 'image/png' });
+      const coarse = matchMedia('(pointer: coarse)').matches;
+      if (coarse && navigator.canShare && navigator.canShare({ files: [f] })) {
+        try { await navigator.share({ files: [f], title: name + ' map' }); return; }
+        catch (err) { if (err && err.name === 'AbortError') return; }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = file;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      showToast('Saved ' + file);
+    }, 'image/png');
+  }
+  snapBtn.addEventListener('click', snapshot);
+
+  // ---------- Projection toggle ----------
+  function setProjection(idx, animate = true) {
+    if (idx === projIdx && mix === idx) return;
+    projIdx = idx;
+    projBtns.forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.proj === idx)));
+    titleEl.textContent = PROJS[idx].name;
+    document.title = PROJS[idx].name;
+    attribEl.textContent = PROJS[idx].attrib;
+
+    if (projAnim) cancelAnimationFrame(projAnim);
+    if (!animate) { mix = idx; projAnim = null; render(); syncHash(); return; }
+    const from = mix, to = idx, t0 = performance.now(), dur = 700;
+    const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const tick = now => {
+      const t = Math.min(1, (now - t0) / dur);
+      mix = lerp(from, to, ease(t));
+      render();
+      if (t < 1) projAnim = requestAnimationFrame(tick);
+      else { projAnim = null; syncHash(); }
+    };
+    projAnim = requestAnimationFrame(tick);
+  }
+
+  // ---------- Shareable state in the URL hash: #proj=mercator&lon=-42 ----------
+  function syncHash() {
+    const r = normalize(rot);
+    const parts = [];
+    if (projIdx === 1) parts.push('proj=mercator');
+    if (Math.abs(r) >= 0.05) parts.push('lon=' + (-r).toFixed(1).replace(/\.0$/, ''));
+    const hash = parts.length ? '#' + parts.join('&') : '';
+    if (hash !== location.hash) {
+      try { history.replaceState(null, '', location.pathname + location.search + hash); } catch (e) {}
+    }
+  }
+  function readHash() {
+    const q = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const lon = parseFloat(q.get('lon'));
+    if (Number.isFinite(lon)) rot = normalize(-lon);
+    const p = (q.get('proj') || '').toLowerCase();
+    if (p.startsWith('merc')) setProjection(1, false);
+    else if (p) setProjection(0, false);
+  }
+  window.addEventListener('hashchange', () => { readHash(); render(); });
+  projBtns.forEach(b => b.addEventListener('click', () => setProjection(+b.dataset.proj)));
 
   // ---------- Interaction ----------
   let dragging = false, startX = 0, startRot = 0, activeId = null;
 
-  function stopAnim() { if (anim) { cancelAnimationFrame(anim); anim = null; } }
+  function stopRotAnim() { if (rotAnim) { cancelAnimationFrame(rotAnim); rotAnim = null; } }
 
   canvas.addEventListener('pointerdown', e => {
     if (activeId !== null) return;       // ignore additional fingers
@@ -467,20 +688,21 @@
     dragging = true;
     startX = e.clientX;
     startRot = rot;
-    stopAnim();
+    stopRotAnim();
     canvas.setPointerCapture(e.pointerId);
     canvas.classList.add('dragging');
   });
   canvas.addEventListener('pointermove', e => {
     if (!dragging || e.pointerId !== activeId) return;
     const dx = e.clientX - startX;
-    rot = normalize(startRot + dx / (scale * KX0) / RAD);
+    rot = normalize(startRot + dx / (g.scale * extents().kx0) / RAD);
     render();
   });
   function endDrag(e) {
     if (e.pointerId !== activeId) return;
     dragging = false; activeId = null;
     canvas.classList.remove('dragging');
+    syncHash();
   }
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
@@ -488,29 +710,31 @@
 
   canvas.addEventListener('keydown', e => {
     const stepDeg = e.shiftKey ? 30 : 5;
-    if (e.key === 'ArrowLeft') { stopAnim(); rot = normalize(rot - stepDeg); render(); e.preventDefault(); }
-    else if (e.key === 'ArrowRight') { stopAnim(); rot = normalize(rot + stepDeg); render(); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { stopRotAnim(); rot = normalize(rot - stepDeg); render(); syncHash(); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { stopRotAnim(); rot = normalize(rot + stepDeg); render(); syncHash(); e.preventDefault(); }
     else if (e.key === 'Home' || e.key === '0') { reset(); e.preventDefault(); }
+    else if (e.key === 'p' || e.key === 'P') { setProjection(1 - projIdx); }
   });
 
   function reset() {
-    stopAnim();
+    stopRotAnim();
     const from = normalize(rot);
-    if (Math.abs(from) < 0.05) { rot = 0; render(); return; }
+    if (Math.abs(from) < 0.05) { rot = 0; render(); syncHash(); return; }
     const t0 = performance.now(), dur = 550;
     const ease = t => 1 - Math.pow(1 - t, 3);
     const tick = now => {
       const t = Math.min(1, (now - t0) / dur);
       rot = from * (1 - ease(t));
-      if (t < 1) { anim = requestAnimationFrame(tick); render(); }
-      else { anim = null; rot = 0; render(); }
+      if (t < 1) { rotAnim = requestAnimationFrame(tick); render(); }
+      else { rotAnim = null; rot = 0; render(); syncHash(); }
     };
-    anim = requestAnimationFrame(tick);
+    rotAnim = requestAnimationFrame(tick);
   }
   resetBtn.addEventListener('click', reset);
 
   // ---------- Boot ----------
   readColors();
+  readHash();
   const mq = window.matchMedia('(prefers-color-scheme: dark)');
   (mq.addEventListener ? mq.addEventListener('change', () => { readColors(); render(); }) : mq.addListener(() => { readColors(); render(); }));
   if ('ResizeObserver' in window) new ResizeObserver(layout).observe(canvas.parentElement);
